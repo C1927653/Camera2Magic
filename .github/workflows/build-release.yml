@@ -9,7 +9,6 @@ on:
 permissions:
   contents: read
 
-# 同一 ref 只保留最新一次构建：重复触发自动取消未跑完的旧 run
 concurrency:
   group: build-release-${{ github.ref }}
   cancel-in-progress: true
@@ -22,7 +21,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
         with:
-          # 需要完整历史：versionCode = git 提交数（git rev-list --count HEAD）
           fetch-depth: 0
 
       - name: Verify tag matches versionName
@@ -39,7 +37,7 @@ jobs:
           version_name="${major}.${minor}.${patch}"
           tag="${GITHUB_REF_NAME#v}"
           if [ "${tag}" != "${version_name}" ]; then
-            echo "::error::tag '${GITHUB_REF_NAME}' 与 app/build.gradle 的 versionName '${version_name}' 不一致"
+            echo "::error::tag '${GITHUB_REF_NAME}' 与 app/build.gradle 的 versionName '${version_name}'"
             exit 1
           fi
           echo "tag/versionName 一致：${GITHUB_REF_NAME} == ${version_name}"
@@ -51,28 +49,21 @@ jobs:
           java-version: '21'
 
       - name: Set up Gradle (cached)
-        # v6 起缓存组件改为专有许可（gradle-actions-caching）且移除了配置缓存支持，故停在 v5
         uses: gradle/actions/setup-gradle@v5
 
-      - name: Decode release keystore
-        env:
-          KEYSTORE_B64: ${{ secrets.CAM2MAGIC_KEYSTORE_B64 }}
+      - name: Decode built-in keystore base64
         run: |
           set -e
-          if [[ -z "${KEYSTORE_B64}" ]]; then
-            echo "::error::Secret CAM2MAGIC_KEYSTORE_B64 为空！请到仓库 Actions Secrets 检查"
-            exit 1
-          fi
-          echo "Keystore base64 length: ${#KEYSTORE_B64}"
-          echo -n "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/cam2magic.keystore"
+          KEY_B64="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"
+          echo -n "$KEY_B64" | base64 -d > "$RUNNER_TEMP/cam2magic.keystore"
           test -s "$RUNNER_TEMP/cam2magic.keystore"
 
       - name: Build signed release APK
         env:
           CAM2MAGIC_KEYSTORE: ${{ runner.temp }}/cam2magic.keystore
-          CAM2MAGIC_KEYSTORE_PASSWORD: ${{ secrets.CAM2MAGIC_KEYSTORE_PASSWORD }}
-          CAM2MAGIC_KEY_ALIAS: ${{ secrets.CAM2MAGIC_KEY_ALIAS }}
-          CAM2MAGIC_KEY_PASSWORD: ${{ secrets.CAM2MAGIC_KEY_PASSWORD }}
+          CAM2MAGIC_KEYSTORE_PASSWORD: 12345678
+          CAM2MAGIC_KEY_ALIAS: cam2magic
+          CAM2MAGIC_KEY_PASSWORD: 12345678
         run: ./gradlew assembleRelease -x lintVitalRelease
 
       - name: Upload release APK
